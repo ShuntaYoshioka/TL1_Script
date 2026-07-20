@@ -1,5 +1,6 @@
 import bpy
 import math
+import bpy_extras
 
 # Blenderに登録するアドオンの情報
 bl_info = {
@@ -24,6 +25,7 @@ class MYADDON_OT_stretch_vertex(bpy.types.Operator):
     bl_idname = "myaddon.myaddon_ot_stretch_vertex"
     bl_label = "頂点を伸ばす"
     bl_description = "頂点座標を引っ張って伸ばします"
+
     #リドゥ、アンドゥ可能オプション
     bl_options = {'REGISTER','UNDO'}
 
@@ -35,7 +37,7 @@ class MYADDON_OT_stretch_vertex(bpy.types.Operator):
         return {'FINISHED'}
     
 
-class MYAFFON_OT_create_ico_sphere(bpy.types.Operator):
+class MYADDON_OT_create_ico_sphere(bpy.types.Operator):
     bl_idname = "myaddon.myaddon_ot_create_object"
     bl_label = "ICO球生成"
     bl_description ="ICO球を生成します"
@@ -49,32 +51,42 @@ class MYAFFON_OT_create_ico_sphere(bpy.types.Operator):
         return {'FINISHED'}
     
 
-class  MYAFFON_OT_export_scene(bpy.types.Operator):
+class  MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
      bl_idname = "myaddon.myaddon_ot_export_scene"
      bl_label = "scene出力"
      bl_description ="scene情報をExportします"
 
+
+        # 出力するファイルの拡張子
+     filename_ext = ".scene"
+
+     def export(self):
+        """ファイルに出力"""
+
+        print("scene情報出力開始... %r " % self.filepath)
+
+        with open(self.filepath, "wt") as file:
+            
+            self.write_and_print(file, "SCENE")
+            
+            for object in bpy.context.scene.objects:
+             
+             if(object.parent):
+                 continue
+             
+             self.parse_scene_recursive(file, object,0)
+
+             if object.parent:
+                print("Parent:" + object.parent.name)
+             print()
+
+
      def execute(self, context):
         print(" scene情報をExportします")
 
-        for object in bpy.context.scene.objects:
-            print(object.type + " - " + object.name)
+        #ファイル出力
+        self.export()
 
-            trans, rot, scale = object.matrix_local.decompose()
-
-            rot = rot.to_euler()
-
-            rot.x = math.degrees(rot.x)
-            rot.y = math.degrees(rot.y)
-            rot.z = math.degrees(rot.z)
-
-            print("Trans(%f,%f,%f)" % (trans.x,trans.y,trans.z))
-            print("Rot(%f, %f, %f)" % (rot.x,rot.y,rot.z))
-            print("Scale(%f, %f, %f)" % (scale.x, scale.y, scale.z))
-
-            if object.parent:
-                print("Parent:" + object.parent.name)
-            print()
 
 
         print(bpy.context.scene.objects)
@@ -84,6 +96,44 @@ class  MYAFFON_OT_export_scene(bpy.types.Operator):
 
         return {'FINISHED'}
 
+     def write_and_print(self,file,str):
+        print(str)
+
+        file.write(str)
+        file.write('\n')
+
+     def parse_scene_recursive(self, file,object, level):
+         
+
+         #深さ分インデントする
+         indent = ''
+         for i in range(level):
+             indent += "\t"
+
+
+         #オブジェクト名書き込み
+         self.write_and_print(file, indent + object.type + " - " + object.name)
+         trans, rot, scale = object.matrix_local.decompose()
+         #回転をQuterionからEulerに変換
+         rot = rot.to_euler()
+         #ラジアンから度数法に変換
+         rot.x = math.degrees(rot.x)
+         rot.y = math.degrees(rot.y)
+         rot.z = math.degrees(rot.z)
+         #トランスフォーム情報の表示
+         self.write_and_print(file,indent +"Trans(%f,%f,%f)" % (trans.x, trans.y, trans.z))
+         self.write_and_print(file,indent +"Rot(%f,%f,%f)" % (rot.x, rot.y, rot.z))
+         self.write_and_print(file,indent + "Scale(%f,%f,%f)" % (scale.x, scale.y, scale.z))
+         self.write_and_print(file, '')
+
+         #子ノードへ進む
+         for child in object.children:
+             self.parse_scene_recursive(file, child,level + 1)
+            
+
+
+     
+    
 
 
     
@@ -102,11 +152,11 @@ class TOPBAR_MT_my_menu(bpy.types.Menu):
              text=MYADDON_OT_stretch_vertex.bl_label)
         
         #draw 関数の中に追記
-        self.layout.operator(MYAFFON_OT_create_ico_sphere.bl_idname, 
-                     text=MYAFFON_OT_create_ico_sphere.bl_label)
+        self.layout.operator(MYADDON_OT_create_ico_sphere.bl_idname, 
+                     text=MYADDON_OT_create_ico_sphere.bl_label)
         
-        self.layout.operator(MYAFFON_OT_export_scene.bl_idname,
-                     text=MYAFFON_OT_export_scene.bl_label)
+        self.layout.operator(MYADDON_OT_export_scene.bl_idname,
+                     text=MYADDON_OT_export_scene.bl_label)
 
     def submenu(self, context):
         self.layout.menu(TOPBAR_MT_my_menu.bl_idname)
@@ -115,8 +165,8 @@ class TOPBAR_MT_my_menu(bpy.types.Menu):
 # 登録するクラスのリスト
 classes = (
     MYADDON_OT_stretch_vertex,
-    MYAFFON_OT_create_ico_sphere,
-    MYAFFON_OT_export_scene,
+    MYADDON_OT_create_ico_sphere,
+    MYADDON_OT_export_scene,
     TOPBAR_MT_my_menu,
 )
 
