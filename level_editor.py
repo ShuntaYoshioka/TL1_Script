@@ -2,6 +2,11 @@ import bpy
 import math
 import bpy_extras
 
+import gpu
+import gpu_extras.batch
+
+import copy
+
 # Blenderに登録するアドオンの情報
 bl_info = {
     "name": "レベルエディタ",  
@@ -151,6 +156,7 @@ class OBJECT_PT_file_name(bpy.types.Panel):
             self.layout.prop(context.object, '[file_name]', text=self.bl_label)
         else:
             self.layout.operator(MYADDON_OT_add_filename.bl_idname)
+
         
     
 class MYADDON_OT_add_filename(bpy.types.Operator):
@@ -192,6 +198,80 @@ class TOPBAR_MT_my_menu(bpy.types.Menu):
         self.layout.menu(TOPBAR_MT_my_menu.bl_idname)
 
 
+#こらいだー描画
+class DrawCollider:
+    #びょうがバンドル
+    handle = None
+    #3Dビューに登録する描画関数
+    def draw_collider():
+        #頂点データ
+        vertices = {"pos":[]}
+        #インデックスデータ
+        indices = []
+
+        #各頂点のオブジェクト中心からのオフセット
+        offsets = [
+            [-0.5,-0.5,-0.5],#左下前
+            [+0.5,-0.5,-0.5],#右下前
+            [-0.5,+0.5,-0.5],#左上前
+            [+0.5,+0.5,-0.5],#右上前
+            [-0.5,-0.5,+0.5],#左下奥
+            [+0.5,-0.5,+0.5],#右下奥
+            [-0.5,+0.5,+0.5],#左上億
+            [+0.5,+0.5,+0.5],#右上奥
+        ]
+
+        #立方体のx,y,z方向サイズ
+        size = [2,2,2]
+
+        #現在sceneのオブジェクトリストを走査
+        for object in bpy.context.scene.objects:
+            #追加前の頂点数
+            start = len(vertices["pos"])
+
+            #Boxの8頂点分回す
+            for offset in offsets:
+                #オブジェクトの中心座標をコピー
+                pos = copy.copy(object.location)
+                #中心点を基準に各頂点ごとにずらす
+                pos[0]+=offset[0]*size[0]
+                pos[1]+=offset[1]*size[1]
+                pos[2]+=offset[2]*size[2]
+                #頂点データリストに座標を追加
+                vertices['pos'].append(pos)
+                
+            #前面を構成する辺の頂点インデックス
+            indices.append([start+0,start+1])
+            indices.append([start+2,start+3])
+            indices.append([start+0,start+2])
+            indices.append([start+1,start+3])
+            #奥面を構成する辺の頂点インデックス
+            indices.append([start+4,start+5])
+            indices.append([start+6,start+7])
+            indices.append([start+4,start+6])
+            indices.append([start+5,start+7])
+            #手前と奥を繋ぐ辺の頂点インデックス
+            indices.append([start+0,start+4])
+            indices.append([start+1,start+5])
+            indices.append([start+2,start+6])
+            indices.append([start+3,start+7])
+                
+
+
+        #ビルドインのシェーダー取得
+        shader = gpu.shader.from_builtin("UNIFORM_COLOR")
+
+        batch = gpu_extras.batch.batch_for_shader(shader, "LINES", vertices,indices = indices)
+
+        #シェーダーのパラメータ設定
+        color = {0.5,1.0,1.0,1.0}
+        shader.bind()
+        shader.uniform_float("color",color)
+        #描画
+        batch.draw(shader)
+
+
+
 # 登録するクラスのリスト
 classes = (
     MYADDON_OT_stretch_vertex,
@@ -207,10 +287,18 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.TOPBAR_MT_editor_menus.append(TOPBAR_MT_my_menu.submenu)
+    #3Dビューに描画関数を追加
+    DrawCollider.handle = bpy.types.SpaceView3D.draw_handler_add(DrawCollider.draw_collider, (), "WINDOW", "POST_VIEW")
+
+
     print("レベルエディタ（アドオン）が有効化されました.")
 
 def unregister():
+    #メニューから項目を排除
     bpy.types.TOPBAR_MT_editor_menus.remove(TOPBAR_MT_my_menu.submenu)
+    #3Dビューから描画関数を削除
+    bpy.types.SpaceView3D.draw_handler_remove(DrawCollider.handle,"WINDOW")
+
 
     for cls in classes:
         bpy.utils.unregister_class(cls)
