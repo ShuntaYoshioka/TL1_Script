@@ -264,11 +264,13 @@ class DrawCollider:
         batch = gpu_extras.batch.batch_for_shader(shader, "LINES", vertices,indices = indices)
 
         #シェーダーのパラメータ設定
-        color = {0.5,1.0,1.0,1.0}
+        color = [0.5,1.0,1.0,1.0]
         shader.bind()
         shader.uniform_float("color",color)
         #描画
         batch.draw(shader)
+
+
 
 
 
